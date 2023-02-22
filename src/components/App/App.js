@@ -1,201 +1,61 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
-import PropTypes from "prop-types";
+import { HashRouter, Routes, Route, useParams } from "react-router-dom";
+import LoginPage from "../../pages/LoginPage";
+import HomePage from "../../pages/HomePage";
+import Header from "../Header";
+import { getMe, getPosts } from "../../WebAPI";
+import { AuthContext } from "../../contexts";
 
-const API_ENDPOINT =
-  "https://student-json-api.lidemy.me/comments?_sort=createdAt&_order=desc";
-
-const Page = styled.div`
-  width: 360px;
-  margin: 0 auto;
+const Root = styled.div`
+  padding-top: 64px;
 `;
 
-const Title = styled.h1`
-  color: #333;
-`;
+const PostPageContainer = styled.div``;
+const PostPageTitle = styled.div``;
+const PostPageBody = styled.div``;
+const PostPageCreatedAt = styled.div``;
 
-const MessageForm = styled.form`
-  margin-top: 16px;
-`;
-
-const MessageTextarea = styled.textarea`
-  display: block;
-  width: 100%;
-`;
-
-const SubmitButton = styled.button`
-  margin-top: 8px;
-`;
-
-const MessageList = styled.div`
-  margin-top: 16px;
-`;
-
-const MessageContainer = styled.div`
-  border: 1px solid black;
-  padding: 8px 16px;
-  border-radius: 8px;
-
-  & + & {
-    margin-top: 10px;
-  }
-`;
-
-const MessageHead = styled.div`
-  display: flex;
-  align-items: center;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
-`;
-
-const MessageAuthor = styled.div`
-  font-size: 20px;
-  margin-right: auto;
-`;
-
-const MessageTime = styled.div`
-  color: rgba(23, 78, 55, 0.7);
-`;
-
-const MessageBody = styled.div`
-  font-size: 22px;
-  margin-top: 16px;
-`;
-
-const ErrorMessage = styled.div`
-  margin-top: 10px;
-  color: red;
-`;
-
-const Loading = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  color: white;
-  font-size: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-function Message({ author, time, children }) {
+function PostPage({ posts }) {
+  const { id } = useParams();
+  const d = posts.filter((post) => post.id === Number(id));
   return (
-    <MessageContainer>
-      <MessageHead>
-        <MessageAuthor>{author}</MessageAuthor>
-        <MessageTime>{time}</MessageTime>
-      </MessageHead>
-      <MessageBody>{children}</MessageBody>
-    </MessageContainer>
+    <PostPageContainer>
+      <PostPageTitle>{d[0].title}</PostPageTitle>
+      <PostPageCreatedAt>{d[0].createdAt}</PostPageCreatedAt>
+      <PostPageBody>{d[0].body}</PostPageBody>
+    </PostPageContainer>
   );
 }
 
-Message.propTypes = {
-  author: PropTypes.string,
-  time: PropTypes.string,
-  children: PropTypes.node,
-};
-
 function App() {
-  const [message, setMessage] = useState(null);
-  const [messageApiError, setMessageApiError] = useState(null);
-  const [value, setValue] = useState();
-  const [postMessageError, setPostMessageError] = useState();
-  const [isLoadingPostMessage, setIsLoadingPostMessage] = useState(false);
-
-  const fetchMessages = () => {
-    return fetch(API_ENDPOINT)
-      .then((res) => res.json())
-      .then((data) => {
-        setMessage(data);
-      })
-      .catch((err) => {
-        setMessageApiError(err.message);
-      });
-  };
-
+  const [posts, setPosts] = useState([]);
+  const [user, setUser] = useState(null);
   useEffect(() => {
-    fetchMessages();
+    getPosts().then((posts) => setPosts(posts));
   }, []);
 
-  const handleTextAreaChange = (e) => {
-    setValue(e.target.value);
-  };
-
-  const handleTextAreaFocus = (e) => {
-    setPostMessageError(null);
-  };
-
-  const handleFormSubmit = (e) => {
-    e.preventDefault();
-    if (isLoadingPostMessage) return;
-    setIsLoadingPostMessage(true);
-    fetch("https://student-json-api.lidemy.me/comments", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        nickname: "asd",
-        body: value,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setIsLoadingPostMessage(false);
-        if (data.ok === 0) {
-          setPostMessageError(data.message);
-          return;
-        }
-        setValue("");
-        fetchMessages();
-      })
-      .catch((err) => {
-        setIsLoadingPostMessage(false);
-        setPostMessageError(err.message);
-      });
-  };
+  useEffect(() => {
+    getMe().then((res) => {
+      if (res.ok) {
+        setUser(res.data);
+      }
+    });
+  }, []);
 
   return (
-    <div className="App">
-      <Page>
-        {isLoadingPostMessage && <Loading>Loading...</Loading>}
-        <Title>留言板</Title>
-        <MessageForm onSubmit={handleFormSubmit}>
-          <MessageTextarea
-            value={value}
-            onChange={handleTextAreaChange}
-            onFocus={handleTextAreaFocus}
-            rows={10}
-          />
-          <SubmitButton>送出留言</SubmitButton>
-          {postMessageError && <ErrorMessage>{postMessageError}</ErrorMessage>}
-        </MessageForm>
-        {messageApiError && (
-          <ErrorMessage>
-            Something went wrong. {messageApiError.toString()}
-          </ErrorMessage>
-        )}
-        {message && message.length === 0 && <div>not message.</div>}
-        <MessageList>
-          {message &&
-            message.map((mess) => {
-              return (
-                <Message
-                  key={mess.id}
-                  author={mess.nickname}
-                  time={new Date(mess.createdAt).toLocaleString()}
-                >
-                  {mess.body}
-                </Message>
-              );
-            })}
-        </MessageList>
-      </Page>
-    </div>
+    <AuthContext.Provider value={{ user, setUser }}>
+      <Root>
+        <HashRouter>
+          <Header />
+          <Routes>
+            <Route path="/" element={<HomePage posts={posts} />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/posts/:id" element={<PostPage posts={posts} />} />
+          </Routes>
+        </HashRouter>
+      </Root>
+    </AuthContext.Provider>
   );
 }
 
